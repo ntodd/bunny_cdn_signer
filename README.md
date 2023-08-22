@@ -21,7 +21,7 @@ Get your "Url Token Authentication Key" in the Security > Token Authentication
 settings for your pull zone. Set it up in your application config
 
 ```
-config :bunny_cdn, authentication_key: "auth_key_here"
+config :bunny_cdn_signer, authentication_key: "auth_key_here"
 ```
 
 **Be sure to keep this secret either with a `dev.secret.exs` file or by using ENV

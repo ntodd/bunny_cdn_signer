@@ -2,7 +2,7 @@ defmodule BunnyCDNSignerTest do
   use ExUnit.Case, async: true
 
   setup do
-    Application.put_env(:bunny_cdn, :authentication_key, "test_key")
+    Application.put_env(:bunny_cdn_signer, :authentication_key, "test_key")
   end
 
   describe "sign_url/2" do
@@ -68,7 +68,7 @@ defmodule BunnyCDNSignerTest do
     end
 
     test "raises error when authentication key is missing" do
-      Application.delete_env(:bunny_cdn, :authentication_key)
+      Application.delete_env(:bunny_cdn_signer, :authentication_key)
 
       assert_raise RuntimeError,
                    "Bunny CDN authentication_key not set in Application config",

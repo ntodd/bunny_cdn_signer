@@ -30,7 +30,7 @@ defmodule BunnyCDNSigner do
   """
   def sign_url(url, opts \\ []) do
     authentication_key =
-      Application.get_env(:bunny_cdn, :authentication_key) ||
+      Application.get_env(:bunny_cdn_signer, :authentication_key) ||
         raise "Bunny CDN authentication_key not set in Application config"
 
     user_ip = Keyword.get(opts, :user_ip, "")
