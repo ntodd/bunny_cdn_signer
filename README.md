@@ -12,7 +12,7 @@ The package can be installed by adding `bunny_cdn_signer` to your list of depend
 ```elixir
 def deps do
   [
-    {:bunny_cdn_signer, "~> 0.1.0"}
+    {:bunny_cdn_signer, "~> 0.1.1"}
   ]
 end
 ```
