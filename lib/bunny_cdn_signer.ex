@@ -39,14 +39,15 @@ defmodule BunnyCDNSigner do
     path_allowed = Keyword.get(opts, :path_allowed, "")
     countries_allowed = Keyword.get(opts, :countries_allowed, "")
     countries_blocked = Keyword.get(opts, :countries_blocked, "")
-
     expires = :os.system_time(:second) + expiration_time
 
     # Parse the url into a URI and add the countries to the query params if they are provided
     uri =
       url
       |> URI.parse()
-      |> put_countries(countries_allowed, countries_blocked)
+      |> maybe_put_countries_allowed(countries_allowed)
+      |> maybe_put_countries_blocked(countries_blocked)
+      |> maybe_put_token_path(path_allowed)
 
     # Process the parameters to get the signature path and parameter data
     {signature_path, parameter_data} = process_parameters(uri, path_allowed)
@@ -54,18 +55,10 @@ defmodule BunnyCDNSigner do
     # Generate the token
     token = generate_token(authentication_key, signature_path, expires, user_ip, parameter_data)
 
-    uri =
-      if is_directory do
-        # Add the token and expires to the path
-        %{uri | path: "/bcdn_token=#{token}&expires=#{expires}#{uri.path}"}
-      else
-        # Add the token and expires to the query string
-        uri
-        |> put_query_param("token", token)
-        |> put_query_param("expires", expires)
-      end
-
-    URI.to_string(uri)
+    uri
+    |> put_query_param("expires", expires)
+    |> put_query_param("token", token)
+    |> to_string(is_directory)
   end
 
   defp generate_token(authentication_key, signature_path, expires, user_ip, parameter_data) do
@@ -79,22 +72,59 @@ defmodule BunnyCDNSigner do
     |> String.replace("=", "")
   end
 
-  defp put_countries(%URI{} = uri, countries_allowed, countries_blocked) do
-    maybe_put_countries_allowed = fn uri ->
-      if countries_allowed != "",
-        do: put_query_param(uri, "token_countries", countries_allowed),
-        else: uri
-    end
+  defp maybe_put_countries_allowed(%URI{} = uri, countries_allowed) do
+    if countries_allowed != "",
+      do: put_query_param(uri, "token_countries", countries_allowed),
+      else: uri
+  end
 
-    maybe_put_countries_blocked = fn uri ->
-      if countries_blocked != "",
-        do: put_query_param(uri, "token_countries_blocked", countries_blocked),
-        else: uri
-    end
+  defp maybe_put_countries_blocked(%URI{} = uri, countries_blocked) do
+    if countries_blocked != "",
+      do: put_query_param(uri, "token_countries_blocked", countries_blocked),
+      else: uri
+  end
+
+  defp maybe_put_token_path(%URI{} = uri, token_path) do
+    if token_path != "",
+      do: put_query_param(uri, "token_path", token_path),
+      else: uri
+  end
+
+  defp to_string(%URI{query: nil}, _),
+    do: raise("to_string/2 cannot be called with a nil query")
+
+  defp to_string(%URI{} = uri, false), do: URI.to_string(uri)
+
+  defp to_string(%URI{query: query} = uri, true) do
+    # Split the query params into cdn_params and user_params
+    {cdn_params, user_params} =
+      query
+      |> URI.decode_query()
+      |> Enum.reduce({%{}, %{}}, fn {k, v}, {new_map, remaining_map} ->
+        if k in ["token", "expires", "token_path", "token_countries", "token_countries_blocked"] do
+          {Map.put(new_map, k, v), remaining_map}
+        else
+          {new_map, Map.put(remaining_map, k, v)}
+        end
+      end)
+
+    cdn_query =
+      cdn_params
+      # Replace the cdn_params "token" query param with "bcdn_token"
+      |> Map.put("bcdn_token", Map.get(cdn_params, "token"))
+      |> Map.delete("token")
+      |> URI.encode_query()
+
+    # Any user query params that were provided
+    user_query =
+      user_params
+      |> URI.encode_query()
+      |> then(fn query -> if query == "", do: nil, else: query end)
 
     uri
-    |> maybe_put_countries_allowed.()
-    |> maybe_put_countries_blocked.()
+    |> Map.put(:path, "/#{cdn_query}#{uri.path}")
+    |> Map.put(:query, user_query)
+    |> URI.to_string()
   end
 
   defp process_parameters(%URI{} = uri, path_allowed) do
